@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "A simple query interface for Druid HTTP API",
   "main": "dist/index.js",
-  "dependencies": {},
-  "devDependencies": {},
+  "dependencies": {
+    "node-fetch": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^16.7.10"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,5 +17,5 @@
     "SQL"
   ],
   "author": "Hermes Espinola <hermes.espinola@gmail.com>",
-  "license": "Apache"
+  "license": "Apache-2.0"
 }
