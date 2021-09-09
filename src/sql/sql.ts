@@ -1,8 +1,8 @@
 import { SQLParameter, isSQLParameter } from './types'
 
 type SQLLiteral = string | number | boolean | null
-type InlineSQLResult = [string[], SubSQL[]]
-type InlineSQL = (strings: string[], ...subparts: SubSQL[]) => InlineSQLResult
+type InlineSQLResult = [TemplateStringsArray, readonly SubSQL[]]
+type InlineSQL = (strings: TemplateStringsArray, ...subparts: readonly SubSQL[]) => InlineSQLResult
 type InlineSQLFunction = (sql: InlineSQL) => SQLLiteral | SQLParameter | InlineSQLResult | undefined
 type SubSQL = InlineSQLFunction | SQLLiteral | SQLParameter
 
@@ -20,15 +20,16 @@ function isSQLLiteral(a: any): a is SQLLiteral {
 }
 
 export function sql(parts: TemplateStringsArray, ...subSqls: readonly SubSQL[]) {
-  const sqlTemplate = [parts[0]]
+  const sqlTemplate = []
   const parameters: SQLParameter[] = []
 
   let partsStack = Array.from(parts)
   let subSqlStack = Array.from(subSqls)
 
   // This function enables sql inside the template
-  const inlineSQL = (strings: string[], ...inlineParams: SubSQL[]): [string[], SubSQL[]] => [strings, inlineParams]
+  const inlineSQL = (strings: TemplateStringsArray, ...inlineParams: readonly SubSQL[]): InlineSQLResult => [strings, inlineParams]
 
+  sqlTemplate.push(partsStack.shift())
   while (subSqlStack.length > 0) {
     const subSql = subSqlStack.shift()
     const last = sqlTemplate.length - 1
@@ -39,7 +40,7 @@ export function sql(parts: TemplateStringsArray, ...subSqls: readonly SubSQL[]) 
       sqlTemplate[last] += partsStack.shift()
     } else if (isSQLLiteral(subSql)) {
       // Insert literals into the template
-      sqlTemplate[last] += `${JSON.stringify(subSql)} ${partsStack.shift()}`
+      sqlTemplate[last] += `${JSON.stringify(subSql)}${partsStack.shift()}`
     } else if (isSQLParameter(subSql)) {
       sqlTemplate.push(partsStack.shift())
       parameters.push(subSql)
@@ -47,31 +48,45 @@ export function sql(parts: TemplateStringsArray, ...subSqls: readonly SubSQL[]) 
       // Execute function and append result to stack
       const result = subSql(inlineSQL)
 
-      if (subSql === undefined) {
+      if (!result) {
+        // Ignore falsy values
+        // Allows syntax like sql`${(sql) => falsyVar && sql``}`
         sqlTemplate[last] += partsStack.shift()
       } else if (isSQLLiteral(result)) {
-        sqlTemplate[last] += `${JSON.stringify(subSql)} ${partsStack.shift()}`
+        sqlTemplate[last] += `${JSON.stringify(result)}${partsStack.shift()}`
       } else if (isSQLParameter(result)) {
         sqlTemplate.push(partsStack.shift())
         parameters.push(result)
       } else if (Array.isArray(result)) {
-        const [firstStr, ...restStrs] = result[0]
-        sqlTemplate[last] += firstStr
+        const [inlineStrings, inlineSubSqls] = result
 
-        // Add parameters and remaining string to the beginning of the stacks
-        partsStack = restStrs.concat(partsStack)
-        subSqlStack = result[1].concat(subSqlStack)
+        // Merge first inline string with last sqlTemplate...
+        sqlTemplate[last] += inlineStrings[0]
+        if (inlineStrings.length === 1) {
+          continue
+        } else {
+          // ...merge last inlineString with the next sqlTemplate...
+          partsStack[0] = inlineStrings[inlineStrings.length - 1] + partsStack[0]
+        }
+
+        // Add remaining strings and parameters to the beginning of the stacks,
+        // This will flatten the inline sql and we can process it in the next iteration
+        partsStack = inlineStrings.slice(1, inlineStrings.length - 1).concat(partsStack)
+        subSqlStack = inlineSubSqls.concat(subSqlStack)
       } else {
         // TODO: create custom error
         throw new Error(`Invalid function parameter result: ${result}`)
       }
     } else {
       // Passed something we don't recognize
-      throw new Error(`Invalid parameter: ${subSql}`)
+      throw new Error(`Invalid parameter:, ${JSON.stringify(subSql)}`)
     }
   }
 
-  const query = partsStack.join('?')
+  const query = sqlTemplate.join('?').trim()
 
-  return { query, parameters }
+  if (parameters.length > 0) {
+    return { query, parameters }
+  }
+  return { query }
 }
