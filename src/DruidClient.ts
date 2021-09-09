@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import fetch from 'node-fetch'
 
 import { SQLParameter } from './sql/types'
+import { sql, SubSQL } from './sql/sql'
 
 type AuthParams = {
   username: string;
@@ -207,6 +208,12 @@ class DruidClient {
     } else {
       throw new Error(res.statusText)
     }
+  }
+
+  sql(parts: TemplateStringsArray, ...subSqls: readonly SubSQL[]) {
+    const query = sql(parts, ...subSqls)
+
+    return (queryOptions?: SQLQueryOptions) => this.querySql(query, queryOptions)
   }
 }
 

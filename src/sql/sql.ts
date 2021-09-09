@@ -4,7 +4,7 @@ type SQLLiteral = string | number | boolean | null
 type InlineSQLResult = [TemplateStringsArray, readonly SubSQL[]]
 type InlineSQL = (strings: TemplateStringsArray, ...subparts: readonly SubSQL[]) => InlineSQLResult
 type InlineSQLFunction = (sql: InlineSQL) => SQLLiteral | SQLParameter | InlineSQLResult | undefined
-type SubSQL = InlineSQLFunction | SQLLiteral | SQLParameter
+export type SubSQL = InlineSQLFunction | SQLLiteral | SQLParameter
 
 function isSQLLiteral(a: any): a is SQLLiteral {
   switch (typeof a) {
