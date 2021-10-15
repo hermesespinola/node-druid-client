@@ -113,9 +113,9 @@ class DruidClient {
   private sqlEndpoint: string
   private headers: { [key: string]: string; }
 
-  constructor(host: string, { port, tls = false, auth }: DruidClientOptions) {
-    const protocol = tls ? 'https' : 'http'
-    const clientPort = port ?? tls ? 8282 : 8082
+  constructor(host: string, options?: DruidClientOptions) {
+    const protocol = options?.tls ? 'https' : 'http'
+    const clientPort = options?.port ?? options?.tls ? 8282 : 8082
 
     this.endpoint = `${protocol}://${host}:${clientPort}/druid/v2`
     this.sqlEndpoint = `${this.endpoint}/sql`
@@ -125,8 +125,9 @@ class DruidClient {
     }
 
     // Only Basic auth
-    if (auth) {
-      const token = Buffer.from(`${auth.username}:${auth.password}`).toString('base64')
+    if (options?.auth) {
+      const { username, password } = options.auth
+      const token = Buffer.from(`${username}:${password}`).toString('base64')
       this.headers.Authorization = `Basic ${token}`
     }
   }
@@ -210,10 +211,8 @@ class DruidClient {
     }
   }
 
-  sql(parts: TemplateStringsArray, ...subSqls: readonly SubSQL[]) {
-    const query = sql(parts, ...subSqls)
-
-    return (queryOptions?: SQLQueryOptions) => this.querySql(query, queryOptions)
+  sql(queryOptions?: SQLQueryOptions): (parts: TemplateStringsArray, ...subSqls: readonly SubSQL[]) => Promise<SQLQueryResponse> {
+    return (parts: TemplateStringsArray, ...subSqls: readonly SubSQL[]) => this.querySql(sql(parts, ...subSqls), queryOptions)
   }
 }
 
